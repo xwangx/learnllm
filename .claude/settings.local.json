@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader)"
+      "Bash(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m ' *)"
     ]
   }
 }
