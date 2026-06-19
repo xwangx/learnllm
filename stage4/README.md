@@ -58,12 +58,35 @@ python stage4/compare.py --prompt "数据质量管理" --tokens 160
 | 让模型基于我的文档准确答疑、能给出处、随文档更新 | RAG |
 | 两者兼顾 | 微调调风格 + RAG 保事实 |
 
+## 续写式 vs 指令式（两套都做了）
+
+第一版是**续写式**（上面）：模型学会数据治理的行文风格，但提问它会"续写"成选择题，不会答题。
+第二版是**指令式**，让它真正"会回答问题"：
+
+```bash
+python stage4/build_qa.py            # 从 wiki 结构自动造 5848 条问答对 -> qa.jsonl
+python stage4/finetune_instruct.py   # chat模板 + prompt masking + LoRA
+python stage4/chat_instruct.py --q "什么是数据血缘？"
+python stage4/chat_instruct.py --base --q "..."   # 对比原始基座
+```
+
+指令微调的两个关键点：
+1. **Chat 模板**：把数据包成对话格式 `<|im_start|>user\n{问}<|im_end|>\n<|im_start|>assistant\n{答}<|im_end|>`。
+2. **Prompt masking（只对答案算 loss）**：问题部分的 label 设 -100 被忽略，
+   模型只学"给定问题生成答案"——这是它从"续写机"变"会答题"的本质原因。
+
+实测：原始基座问它会胡乱吐问题+乱码；指令微调后能结构化、切题地回答（用了 wiki 的
+来源/核心主题/关键观点 报告体）。但仍会编造细节（如文件路径）——再次印证"微调学风格不学事实"。
+
 ## 文件
 ```
-prepare_data.py   读 wiki、去 frontmatter、拼语料
-finetune.py       加载基座 + 套 LoRA + 训练 + 存适配器
-compare.py        原始 vs 微调后 并排对比
-Qwen2.5-0.5B/     基座模型（不进 git）
-corpus.txt        训练语料（不进 git）
-lora_adapter/     训练好的 LoRA 适配器（不进 git，可重新训练）
+prepare_data.py        读 wiki、去 frontmatter、拼语料（续写式用）
+finetune.py            续写式 LoRA 微调
+compare.py             续写式：原始 vs 微调后 对比
+build_qa.py            从 wiki 造问答对（指令式用）
+finetune_instruct.py   指令式 LoRA 微调（chat模板 + prompt masking）
+chat_instruct.py       指令式：和模型对话
+Qwen2.5-0.5B/          基座模型（不进 git）
+corpus.txt / qa.jsonl  训练数据（不进 git）
+lora_adapter*/         训练好的 LoRA 适配器（不进 git，可重新训练）
 ```

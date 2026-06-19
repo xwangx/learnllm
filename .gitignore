@@ -8,5 +8,8 @@ stage3/*.pt
 # 阶段④：基座模型、语料、训练产物、适配器不进仓库
 stage4/Qwen2.5-0.5B/
 stage4/corpus.txt
+stage4/qa.jsonl
 stage4/lora_adapter/
+stage4/lora_adapter_instruct/
 stage4/_trainer_out/
+stage4/_trainer_out_instruct/
