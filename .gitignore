@@ -5,3 +5,8 @@ data/
 # 阶段③：大文件不进仓库（语料可自动下载，权重可重新训练）
 stage3/input.txt
 stage3/*.pt
+# 阶段④：基座模型、语料、训练产物、适配器不进仓库
+stage4/Qwen2.5-0.5B/
+stage4/corpus.txt
+stage4/lora_adapter/
+stage4/_trainer_out/
