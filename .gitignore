@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .venv/
 data/
+# 阶段③：大文件不进仓库（语料可自动下载，权重可重新训练）
+stage3/input.txt
+stage3/*.pt
