@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CNN 运行图 — 02_mnist_cnn.py</title>
+<style>
+  body { margin:0; background:#0d1117; color:#e6edf3; font-family:"Segoe UI",system-ui,sans-serif; }
+  .wrap { max-width:1100px; margin:0 auto; padding:24px; }
+  h1 { font-size:20px; font-weight:600; }
+  h1 small { color:#8b949e; font-weight:400; font-size:13px; }
+  .legend { display:flex; gap:18px; flex-wrap:wrap; margin:14px 0 6px; font-size:13px; color:#c9d1d9; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .sw { width:14px; height:14px; border-radius:3px; display:inline-block; }
+  svg { width:100%; height:auto; display:block; }
+  .note { color:#8b949e; font-size:13px; line-height:1.7; margin-top:10px; }
+  .note b { color:#e6edf3; }
+  text { font-family:"Segoe UI",system-ui,sans-serif; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CNN 运行图 <small>— 对应 stage2/02_mnist_cnn.py，数据从左到右流动</small></h1>
+
+  <div class="legend">
+    <span><i class="sw" style="background:#1f6feb"></i>输入 / 卷积特征图</span>
+    <span><i class="sw" style="background:#238636"></i>池化（下采样）</span>
+    <span><i class="sw" style="background:#9e6a03"></i>全连接</span>
+    <span><i class="sw" style="background:#8957e5"></i>输出</span>
+  </div>
+
+  <svg viewBox="0 0 1080 420" role="img" aria-label="CNN 架构图">
+    <!-- 连接箭头定义 -->
+    <defs>
+      <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+        <path d="M0,0 L7,3 L0,6 Z" fill="#6e7681"/>
+      </marker>
+      <style>
+        .box{rx:6;}
+        .lab{fill:#e6edf3;font-size:13px;font-weight:600;text-anchor:middle;}
+        .dim{fill:#8b949e;font-size:11px;text-anchor:middle;}
+        .op{fill:#7d8590;font-size:11px;text-anchor:middle;font-style:italic;}
+        .flow{stroke:#6e7681;stroke-width:1.6;marker-end:url(#arrow);}
+      </style>
+    </defs>
+
+    <!-- 输入 -->
+    <rect x="20" y="150" width="90" height="120" rx="6" fill="#1f6feb" opacity="0.85"/>
+    <text class="lab" x="65" y="120">输入图片</text>
+    <text class="dim" x="65" y="138">1 × 28 × 28</text>
+    <text class="dim" x="65" y="215" fill="#fff" font-size="34">7</text>
+
+    <!-- op: conv1 -->
+    <text class="op" x="155" y="180">Conv 3×3</text>
+    <text class="op" x="155" y="194">1→32</text>
+    <text class="op" x="155" y="208">+ReLU</text>
+    <line class="flow" x1="112" y1="210" x2="198" y2="210"/>
+
+    <!-- conv1 out -->
+    <rect x="200" y="140" width="80" height="140" rx="6" fill="#1f6feb" opacity="0.7"/>
+    <text class="lab" x="240" y="120">卷积特征</text>
+    <text class="dim" x="240" y="138">32 × 28 × 28</text>
+
+    <!-- op: pool1 -->
+    <text class="op" x="320" y="200">MaxPool 2</text>
+    <text class="op" x="320" y="214">尺寸减半</text>
+    <line class="flow" x1="282" y1="210" x2="358" y2="210"/>
+
+    <!-- pool1 out -->
+    <rect x="360" y="165" width="64" height="90" rx="6" fill="#238636" opacity="0.8"/>
+    <text class="dim" x="392" y="155">32 × 14 × 14</text>
+
+    <!-- op conv2 -->
+    <text class="op" x="455" y="196">Conv 3×3</text>
+    <text class="op" x="455" y="210">32→64 +ReLU</text>
+    <line class="flow" x1="426" y1="210" x2="494" y2="210"/>
+
+    <!-- conv2 out -->
+    <rect x="496" y="160" width="64" height="100" rx="6" fill="#1f6feb" opacity="0.7"/>
+    <text class="lab" x="528" y="120">更复杂图案</text>
+    <text class="dim" x="528" y="150">64 × 14 × 14</text>
+
+    <!-- op pool2 -->
+    <text class="op" x="595" y="200">MaxPool 2</text>
+    <line class="flow" x1="562" y1="210" x2="628" y2="210"/>
+
+    <!-- pool2 out -->
+    <rect x="630" y="180" width="44" height="60" rx="6" fill="#238636" opacity="0.8"/>
+    <text class="dim" x="652" y="170">64 × 7 × 7</text>
+
+    <!-- op flatten -->
+    <text class="op" x="705" y="205">Flatten</text>
+    <line class="flow" x1="676" y1="210" x2="738" y2="210"/>
+
+    <!-- flatten vector -->
+    <rect x="740" y="120" width="18" height="180" rx="4" fill="#9e6a03" opacity="0.85"/>
+    <text class="dim" x="749" y="112">3136</text>
+
+    <!-- op fc1 -->
+    <line class="flow" x1="760" y1="210" x2="800" y2="210"/>
+    <text class="op" x="780" y="200">Linear</text>
+
+    <!-- fc1 -->
+    <rect x="802" y="155" width="16" height="110" rx="4" fill="#9e6a03" opacity="0.85"/>
+    <text class="dim" x="810" y="147">128</text>
+    <text class="op" x="810" y="285">ReLU</text>
+    <text class="op" x="810" y="299">Dropout</text>
+
+    <!-- op fc2 -->
+    <line class="flow" x1="820" y1="210" x2="860" y2="210"/>
+    <text class="op" x="840" y="200">Linear</text>
+
+    <!-- fc2 / logits -->
+    <rect x="862" y="170" width="14" height="80" rx="4" fill="#8957e5" opacity="0.9"/>
+    <text class="dim" x="869" y="162">10</text>
+
+    <!-- output -->
+    <line class="flow" x1="878" y1="210" x2="918" y2="210"/>
+    <rect x="920" y="175" width="130" height="70" rx="8" fill="#8957e5" opacity="0.9"/>
+    <text class="lab" x="985" y="200">10 个分数</text>
+    <text class="dim" x="985" y="218" fill="#eee">argmax</text>
+    <text class="lab" x="985" y="236" font-size="16">→ 预测 "7"</text>
+  </svg>
+
+  <p class="note">
+    <b>左半段（卷积 + 池化）= 提特征：</b> 把 1×28×28 的原图逐步变成"通道更多、尺寸更小"的特征图
+    （32×28×28 → 32×14×14 → 64×14×14 → 64×7×7）。卷积用 3×3 小窗口在图上滑动找局部图案
+    （边缘、笔画），池化每 2×2 取最大值缩小尺寸、保留最强信号。<br>
+    <b>右半段（全连接）= 做分类：</b> 把 64×7×7 = 3136 个特征拉平成一根向量，经两层全连接
+    汇总成 10 个分数（对应 0~9），最大的那个就是预测结果。<br>
+    <b>关键直觉：</b> 越往右，"分辨率"越低但"语义"越高——从像素 → 笔画 → 数字。
+    这就是 CNN 比 MLP 强的原因：它一层层保留并利用了图像的空间结构。
+  </p>
+</div>
+</body>
+</html>
