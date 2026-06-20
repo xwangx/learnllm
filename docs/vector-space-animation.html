@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>向量是怎么被"整理"出意义的 — 动画</title>
+<style>
+  body{margin:0;background:#0d1117;color:#e6edf3;
+       font-family:"Segoe UI",system-ui,"Microsoft YaHei",sans-serif;line-height:1.6;}
+  .wrap{max-width:980px;margin:0 auto;padding:24px 20px 60px;}
+  h1{font-size:21px;font-weight:700;margin-bottom:2px;}
+  .sub{color:#8b949e;font-size:13px;margin-bottom:16px;}
+  .stage-label{font-size:18px;font-weight:700;text-align:center;margin:6px 0 2px;color:#79c0ff;}
+  .cap{text-align:center;color:#c9d1d9;font-size:13.5px;min-height:20px;margin-bottom:10px;}
+  .panel{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;justify-content:center;}
+  canvas{background:#0a0e14;border:1px solid #30363d;border-radius:10px;}
+  .side{flex:1;min-width:240px;}
+  .controls{display:flex;gap:10px;justify-content:center;margin:14px 0;flex-wrap:wrap;}
+  button{background:#21262d;color:#e6edf3;border:1px solid #30363d;border-radius:7px;
+         padding:8px 16px;font-size:14px;cursor:pointer;}
+  button:hover{background:#30363d;}
+  button.primary{background:#1f6feb;border-color:#1f6feb;}
+  .legend{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;font-size:13px;margin:8px 0;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .dot{width:11px;height:11px;border-radius:50%;display:inline-block;}
+  .slider{width:100%;margin:6px 0;}
+  .note{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 14px;font-size:13px;color:#c9d1d9;margin-top:14px;}
+  .note b{color:#79c0ff;}
+  .barbox{text-align:center;}
+  .barboxlab{font-size:12px;color:#8b949e;margin-top:4px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>向量是怎么被"整理"出意义的</h1>
+  <div class="sub">每个点 = 一张图片（或一段文字）的向量。看它从"原始杂乱"被一层层变换，整理成"同类聚在一起"的语义空间。</div>
+
+  <div class="legend">
+    <span><i class="dot" style="background:#f85149"></i>猫</span>
+    <span><i class="dot" style="background:#d29922"></i>狗</span>
+    <span><i class="dot" style="background:#1f6feb"></i>船</span>
+    <span><i class="dot" style="background:#3fb950"></i>汽车</span>
+  </div>
+
+  <div class="stage-label" id="stageLabel">原始像素（杂乱）</div>
+  <div class="cap" id="caption">此刻向量杂乱无章——猫、狗、船、车全混在一起，"距离"没有任何意义。</div>
+
+  <div class="panel">
+    <canvas id="space" width="560" height="420"></canvas>
+    <div class="side">
+      <div class="barbox">
+        <canvas id="bars" width="240" height="150"></canvas>
+        <div class="barboxlab">↑ 高亮那张图的向量：每层被重新"整理"（数值在变）</div>
+      </div>
+      <div class="note">
+        <b>看什么：</b><br>
+        • 左边每个点是一个向量在空间里的位置。<br>
+        • 一开始（原始像素）点是<b>乱的</b>——数字本身不带"意思"。<br>
+        • 每过一层<b>变换</b>，点被重新摆放，同类逐渐<b>聚拢</b>。<br>
+        • 最终：<b>距离 = 意思</b>，同类一团、异类分开。模型最后一步就能轻松读出答案。
+      </div>
+    </div>
+  </div>
+
+  <input type="range" min="0" max="1000" value="0" class="slider" id="slider">
+  <div class="controls">
+    <button class="primary" id="play">▶ 播放</button>
+    <button id="reset">↺ 重置</button>
+    <button id="step">下一层 ▸</button>
+  </div>
+
+  <div class="note">
+    <b>一句话：</b>模型 = 一长串<b>学出来的变换</b>，作用就是把"原始杂乱的数字"逐步整理成
+    "几何上能直接读出答案的向量"。从阶段①到⑥，所有模型本质上都在做这件事——变换向量。
+  </div>
+</div>
+
+<script>
+const STAGES = [
+  {t:0.00, label:"原始像素（杂乱）",   cap:"此刻向量杂乱无章——猫、狗、船、车全混在一起，“距离”没有任何意义。"},
+  {t:0.33, label:"第 1 层变换",        cap:"第一层开始“整理”：相似的东西被轻轻拉近，但还很乱。"},
+  {t:0.66, label:"第 2 层变换",        cap:"更深一层：类与类之间开始分开，结构慢慢浮现。"},
+  {t:1.00, label:"最终表示（按语义聚类）", cap:"同类自动聚成一团、异类分开——距离=意思。模型一读就知道是什么。"},
+];
+
+const W=560,H=420;
+const COLORS=["#f85149","#d29922","#1f6feb","#3fb950"];
+const CENTERS=[[150,140],[410,150],[160,300],[400,300]]; // 4类的最终聚类中心
+const N=160;
+
+// 生成点：每个点有 raw(随机) 和 final(类中心附近) 两个位置
+function rng(seed){let s=seed%2147483647;if(s<=0)s+=2147483646;return()=>(s=s*16807%2147483647)/2147483647;}
+const rand=rng(12345);
+const pts=[];
+for(let i=0;i<N;i++){
+  const c=i%4;
+  const cx=CENTERS[c][0],cy=CENTERS[c][1];
+  const ang=rand()*Math.PI*2, r=rand()*42;
+  pts.push({
+    c,
+    rawx: 40+rand()*(W-80), rawy: 40+rand()*(H-80),      // 原始：均匀随机
+    finx: cx+Math.cos(ang)*r, finy: cy+Math.sin(ang)*r,  // 最终：类中心附近
+    seed: rand()*100,
+  });
+}
+
+const cv=document.getElementById("space"), ctx=cv.getContext("2d");
+const bc=document.getElementById("bars"), bx=bc.getContext("2d");
+const slider=document.getElementById("slider");
+const stageLabel=document.getElementById("stageLabel"), caption=document.getElementById("caption");
+
+let t=0, playing=false;
+const easeT = x => x<0.5 ? 2*x*x : 1-Math.pow(-2*x+2,2)/2; // ease-in-out
+
+function lerp(a,b,k){return a+(b-a)*k;}
+
+function drawSpace(){
+  ctx.clearRect(0,0,W,H);
+  const k=easeT(t);
+  for(const p of pts){
+    const x=lerp(p.rawx,p.finx,k), y=lerp(p.rawy,p.finy,k);
+    ctx.beginPath();
+    ctx.arc(x,y,4.5,0,Math.PI*2);
+    ctx.fillStyle=COLORS[p.c];
+    ctx.globalAlpha=0.9;
+    ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  // 高亮第一个点（与右侧向量条对应）
+  const p0=pts[0];
+  const hx=lerp(p0.rawx,p0.finx,k), hy=lerp(p0.rawy,p0.finy,k);
+  ctx.beginPath();ctx.arc(hx,hy,8,0,Math.PI*2);
+  ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();
+}
+
+function drawBars(){
+  bx.clearRect(0,0,240,150);
+  const k=easeT(t);
+  const n=16, bw=240/n;
+  for(let i=0;i<n;i++){
+    // 原始：伪随机杂乱；最终：平滑有结构。随 t 在两者间过渡
+    const raw=0.2+0.7*Math.abs(Math.sin(i*1.7+pts[0].seed));
+    const fin=0.25+0.6*Math.abs(Math.sin(i*0.5+1));
+    const v=lerp(raw,fin,k);
+    const h=v*120;
+    bx.fillStyle=COLORS[0];
+    bx.globalAlpha=0.85;
+    bx.fillRect(i*bw+2,150-h,bw-4,h);
+  }
+  bx.globalAlpha=1;
+}
+
+function updateLabels(){
+  // 找到当前 t 落在哪个阶段附近
+  let best=STAGES[0];
+  for(const s of STAGES){ if(t>=s.t-0.001) best=s; }
+  stageLabel.textContent=best.label;
+  caption.textContent=best.cap;
+}
+
+function render(){
+  drawSpace();drawBars();updateLabels();
+  slider.value=Math.round(t*1000);
+}
+
+let last=0;
+function loop(ts){
+  if(playing){
+    if(!last)last=ts;
+    const dt=(ts-last)/1000; last=ts;
+    t+=dt/6;                 // 约 6 秒走完一遍
+    if(t>=1){t=1;playing=false;document.getElementById("play").textContent="▶ 重新播放";}
+    render();
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+document.getElementById("play").onclick=function(){
+  if(t>=1){t=0;}
+  playing=!playing; last=0;
+  this.textContent=playing?"⏸ 暂停":"▶ 播放";
+};
+document.getElementById("reset").onclick=function(){
+  t=0;playing=false;last=0;render();document.getElementById("play").textContent="▶ 播放";
+};
+document.getElementById("step").onclick=function(){
+  playing=false;document.getElementById("play").textContent="▶ 播放";
+  // 跳到下一个阶段
+  for(const s of STAGES){ if(s.t>t+0.01){ t=s.t; render(); return; } }
+  t=0; render();
+};
+slider.oninput=function(){ t=this.value/1000; playing=false; document.getElementById("play").textContent="▶ 播放"; render(); };
+
+render();
+</script>
+</body>
+</html>

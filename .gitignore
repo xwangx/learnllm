@@ -20,3 +20,4 @@ stage5/meta.json
 # 工具临时产物
 .playwright-mcp/
 vit_explainer_preview.png
+vec_anim_*.png
