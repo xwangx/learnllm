@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>参数是怎么自己调对的？—— 梯度下降动画</title>
+<style>
+  body{margin:0;background:#0d1117;color:#e6edf3;
+       font-family:"Segoe UI",system-ui,"Microsoft YaHei",sans-serif;line-height:1.6;}
+  .wrap{max-width:860px;margin:0 auto;padding:24px 20px 60px;}
+  h1{font-size:21px;font-weight:700;}
+  .sub{color:#8b949e;font-size:13.5px;margin-bottom:12px;}
+  canvas{background:#0a0e14;border:1px solid #30363d;border-radius:10px;display:block;margin:0 auto;width:100%;height:auto;}
+  .cap{text-align:center;font-size:14.5px;min-height:24px;margin:10px 0;color:#e6edf3;}
+  .cap b{color:#79c0ff;}
+  .stats{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;font-size:14px;margin:8px 0;}
+  .stats div{background:#161b22;border:1px solid #30363d;border-radius:7px;padding:6px 12px;}
+  .stats b{color:#79c0ff;}
+  .controls{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:12px 0;align-items:center;}
+  button{background:#21262d;color:#e6edf3;border:1px solid #30363d;border-radius:7px;padding:8px 15px;font-size:14px;cursor:pointer;}
+  button:hover{background:#30363d;} button.primary{background:#1f6feb;border-color:#1f6feb;}
+  .lr{display:flex;align-items:center;gap:8px;font-size:13px;color:#c9d1d9;}
+  .lr input{width:200px;}
+  .note{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 14px;font-size:13.5px;color:#c9d1d9;margin-top:16px;}
+  .note b{color:#79c0ff;} code{background:#21262d;padding:1px 6px;border-radius:4px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>参数是怎么"自己"调对的？—— 梯度下降</h1>
+  <div class="sub">把"损失"想成一座山谷，参数是谷里的小球。每一步看脚下的<b>坡度(梯度)</b>，朝下坡走一小步——反复几次，自动滚到谷底。</div>
+
+  <canvas id="cv" width="640" height="400"></canvas>
+
+  <div class="cap" id="cap">👇 点「下一步」或「▶播放」，看小球怎么滚向谷底（损失最小处）。</div>
+
+  <div class="stats">
+    <div>参数 w = <b id="sw">0.50</b></div>
+    <div>损失 = <b id="sl">—</b></div>
+    <div>梯度(坡度) = <b id="sg">—</b></div>
+    <div>第 <b id="sstep">0</b> 步</div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="play">▶ 播放</button>
+    <button id="step">下一步 ▸</button>
+    <button id="reset">↺ 重置</button>
+    <span class="lr">学习率 lr = <b id="lrv" style="color:#79c0ff">3.0</b>
+      <input type="range" id="lr" min="0.3" max="13" step="0.1" value="3"></span>
+  </div>
+
+  <div class="note">
+    <b>更新公式（就是阶段① 手写的那行）：</b>
+    <code>新 w = 旧 w − 学习率 × 梯度</code><br>
+    • <b>梯度</b>=脚下坡度，指向<b>上坡</b>；所以减去它=朝<b>下坡</b>走，损失就下降。<br>
+    • <b>学习率</b>=步子大小。试试拖滑块：<b>太小</b>→挪得超慢；<b>合适</b>→平滑到底；
+      <b>太大</b>→在谷里左右横跳；<b style="color:#f85149">非常大</b>→越跳越高，<b style="color:#f85149">发散</b>（训练崩了）。<br>
+    • 到<b>谷底</b>时梯度≈0，<code>w</code> 基本不再变——这就是"训练收敛"。<br>
+    这就是所有模型"自己学会"的底层动作：从 XOR 到 GPT，亿万个参数都靠这一步反复调出来。
+  </div>
+</div>
+
+<script>
+const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
+const W=640,H=400,PAD=44;
+// 损失函数：一个碗 L(w)=0.08(w-5)^2+0.4，最小值在 w=5
+const A=0.08, WMIN=5, C=0.4;
+const L = w => A*(w-WMIN)**2 + C;
+const G = w => 2*A*(w-WMIN);          // 梯度 dL/dw
+const WLO=-1, WHI=11, LLO=0, LHI=3.6;
+const sx = w => PAD + (w-WLO)/(WHI-WLO)*(W-2*PAD);
+const sy = l => H-PAD - (l-LLO)/(LHI-LLO)*(H-2*PAD);
+
+let w=0.5, step=0, lr=3, playing=false, trail=[];
+const $=id=>document.getElementById(id);
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // 轴
+  ctx.strokeStyle="#30363d";ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(PAD,sy(LLO));ctx.lineTo(W-PAD,sy(LLO));ctx.stroke();
+  ctx.fillStyle="#6e7681";ctx.font="12px sans-serif";
+  ctx.fillText("参数 w →",W-90,sy(LLO)+22);
+  ctx.save();ctx.translate(PAD-26,80);ctx.rotate(-Math.PI/2);ctx.fillText("损失 →",0,0);ctx.restore();
+
+  // 损失曲线
+  ctx.strokeStyle="#388bfd";ctx.lineWidth=2.5;ctx.beginPath();
+  for(let i=0;i<=200;i++){const ww=WLO+(WHI-WLO)*i/200;const x=sx(ww),y=sy(L(ww));i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+  ctx.stroke();
+  // 谷底标记
+  ctx.setLineDash([4,4]);ctx.strokeStyle="#3fb950";ctx.beginPath();
+  ctx.moveTo(sx(WMIN),sy(LLO));ctx.lineTo(sx(WMIN),sy(L(WMIN)));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle="#3fb950";ctx.font="12px sans-serif";ctx.fillText("谷底(最优)",sx(WMIN)-28,sy(L(WMIN))+18);
+
+  // 历史轨迹
+  trail.forEach((tw,i)=>{
+    ctx.beginPath();ctx.arc(sx(tw),sy(L(tw)),3,0,7);ctx.fillStyle="#8957e5";ctx.globalAlpha=0.35;ctx.fill();ctx.globalAlpha=1;
+  });
+
+  // 当前点的切线（坡度）
+  const g=G(w), x0=sx(w), y0=sy(L(w));
+  const dwv=1.4; // 切线半宽(数据单位)
+  const xL=sx(w-dwv), yL=sy(L(w)-g*dwv), xR=sx(w+dwv), yR=sy(L(w)+g*dwv);
+  ctx.strokeStyle="#f0883e";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(xL,yL);ctx.lineTo(xR,yR);ctx.stroke();
+  ctx.fillStyle="#f0883e";ctx.font="12px sans-serif";ctx.fillText("坡度=梯度",xR+4,yR);
+
+  // 小球
+  ctx.beginPath();ctx.arc(x0,y0,9,0,7);ctx.fillStyle="#f85149";ctx.fill();
+  ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();
+
+  // 面板
+  $("sw").textContent=w.toFixed(2);
+  $("sl").textContent=L(w).toFixed(3);
+  $("sg").textContent=g.toFixed(3);
+  $("sstep").textContent=step;
+}
+
+function doStep(){
+  const g=G(w);
+  const prevL=L(w);
+  trail.push(w);
+  w = w - lr*g;              // ★ 核心：朝梯度反方向走一步
+  step++;
+  const nowL=L(w);
+  if(Math.abs(g)<0.02){
+    $("cap").innerHTML="🎯 <b>到谷底了！</b> 梯度≈0，参数几乎不再变——这就是「训练收敛」。";
+    playing=false;$("play").textContent="▶ 播放";
+  }else if(nowL>prevL+0.01){
+    $("cap").innerHTML="⚠️ <b style='color:#f85149'>步子迈过头了！</b> 学习率太大，损失反而变大——再大就会发散(训练崩)。把 lr 调小试试。";
+  }else{
+    $("cap").innerHTML="朝下坡走了一步，损失下降了一点。梯度越陡步子越大，越接近谷底梯度越小、步子越小。";
+  }
+  if(Math.abs(w-WMIN)>20){ // 发散保护
+    $("cap").innerHTML="💥 <b style='color:#f85149'>发散了！</b> 学习率太大，小球越跳越远、损失爆炸。这就是 lr 设太大训练崩掉的样子。";
+    playing=false;$("play").textContent="▶ 播放";
+  }
+  draw();
+}
+
+let last=0;
+function loop(ts){
+  if(playing){ if(ts-last>550){doStep();last=ts;} }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+$("play").onclick=function(){playing=!playing;this.textContent=playing?"⏸ 暂停":"▶ 播放";};
+$("step").onclick=function(){playing=false;$("play").textContent="▶ 播放";doStep();};
+$("reset").onclick=function(){w=0.5;step=0;trail=[];playing=false;$("play").textContent="▶ 播放";
+  $("cap").innerHTML="👇 点「下一步」或「▶播放」，看小球怎么滚向谷底（损失最小处）。";draw();};
+$("lr").oninput=function(){lr=parseFloat(this.value);$("lrv").textContent=lr.toFixed(1);};
+
+draw();
+</script>
+</body>
+</html>

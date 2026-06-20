@@ -25,6 +25,8 @@
 > 🧭 **为什么用向量（2维零数学版）**：[why-vectors-2d.html](docs/why-vectors-2d.html)——几个词当成平面坐标，点一下看"谁离它最近=最像"，最朴素地理解"向量=坐标、距离=相似"。
 >
 > 👁️ **注意力在关注什么**：[attention-explainer.html](docs/attention-explainer.html)——点句子里的词，看模型处理它时"目光"投向哪些相关词（如「它」→「小猫」的代词指代）。
+>
+> ⛰️ **参数怎么自己调对的**：[gradient-descent.html](docs/gradient-descent.html)——梯度下降动画，小球顺着"损失山谷"滚到谷底；拖学习率滑块看步子太大/太小的后果。
 
 ## 一条贯穿始终的主线
 
