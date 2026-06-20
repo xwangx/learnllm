@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>为什么用向量？2维直观版</title>
+<style>
+  body{margin:0;background:#0d1117;color:#e6edf3;
+       font-family:"Segoe UI",system-ui,"Microsoft YaHei",sans-serif;line-height:1.6;}
+  .wrap{max-width:860px;margin:0 auto;padding:24px 20px 60px;}
+  h1{font-size:21px;font-weight:700;}
+  .sub{color:#8b949e;font-size:13.5px;margin-bottom:14px;}
+  .cap{text-align:center;font-size:14.5px;color:#e6edf3;min-height:24px;margin:10px 0;}
+  .cap b{color:#79c0ff;}
+  canvas{background:#0a0e14;border:1px solid #30363d;border-radius:10px;display:block;margin:0 auto;cursor:pointer;}
+  .controls{display:flex;gap:10px;justify-content:center;margin:14px 0;flex-wrap:wrap;}
+  button{background:#21262d;color:#e6edf3;border:1px solid #30363d;border-radius:7px;padding:8px 15px;font-size:14px;cursor:pointer;}
+  button:hover{background:#30363d;}
+  button.primary{background:#1f6feb;border-color:#1f6feb;}
+  .legend{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;font-size:13px;margin:6px 0 2px;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .dot{width:11px;height:11px;border-radius:50%;display:inline-block;}
+  .note{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 14px;font-size:13.5px;color:#c9d1d9;margin-top:16px;}
+  .note b{color:#79c0ff;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>为什么用向量？—— 2 维直观版</h1>
+  <div class="sub">每个词用 <b>2 个数</b> 当坐标，画在平面上。<b>点任意一个词</b>，看谁离它最近（=最像）。</div>
+
+  <div class="legend">
+    <span><i class="dot" style="background:#f0883e"></i>动物</span>
+    <span><i class="dot" style="background:#1f6feb"></i>交通工具</span>
+    <span><i class="dot" style="background:#3fb950"></i>水果</span>
+  </div>
+
+  <div class="cap" id="cap">👆 点一个词试试（比如「猫」），看它的坐标和"最像"的词。</div>
+
+  <canvas id="cv" width="640" height="460"></canvas>
+
+  <div class="controls">
+    <button class="primary" id="demo">▶ 演示：给「猫」找最像的</button>
+    <button id="clear">清除</button>
+  </div>
+
+  <div class="note">
+    <b>这就是向量的全部意义：</b><br>
+    • 每个词 = 一排数（这里就 2 个：横坐标、纵坐标）。<br>
+    • 这排数把它放到了图上一个<b>位置</b>。<br>
+    • <b>意思相近 → 位置相近</b>：猫、狗、兔子挤在一起；汽车、火车在另一头；离得越远越不像。<br>
+    • 真实模型里不是 2 个数，而是几百个数（几百维），人眼看不到，但<b>道理一模一样</b>——靠"距离"判断像不像。
+  </div>
+</div>
+
+<script>
+const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
+const W=640,H=460, PAD=50;
+// 数据范围 0..10
+const words=[
+  {t:"猫",   x:2.2,y:8.0,g:0},
+  {t:"狗",   x:2.9,y:7.3,g:0},
+  {t:"兔子", x:1.5,y:8.6,g:0},
+  {t:"汽车", x:8.2,y:2.3,g:1},
+  {t:"火车", x:7.5,y:3.1,g:1},
+  {t:"卡车", x:8.8,y:1.9,g:1},
+  {t:"苹果", x:4.6,y:5.0,g:2},
+  {t:"香蕉", x:5.3,y:4.4,g:2},
+];
+const COL=["#f0883e","#1f6feb","#3fb950"];
+
+function sx(x){return PAD + x/10*(W-2*PAD);}
+function sy(y){return H-PAD - y/10*(H-2*PAD);}   // y 轴朝上
+
+let selected=null;
+
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // 网格 + 坐标轴
+  ctx.strokeStyle="#21262d";ctx.lineWidth=1;
+  for(let i=0;i<=10;i++){
+    ctx.beginPath();ctx.moveTo(sx(i),sy(0));ctx.lineTo(sx(i),sy(10));ctx.stroke();
+    ctx.beginPath();ctx.moveTo(sx(0),sy(i));ctx.lineTo(sx(10),sy(i));ctx.stroke();
+  }
+  ctx.strokeStyle="#484f58";ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(sx(0),sy(0));ctx.lineTo(sx(10),sy(0));ctx.stroke();
+  ctx.beginPath();ctx.moveTo(sx(0),sy(0));ctx.lineTo(sx(0),sy(10));ctx.stroke();
+  ctx.fillStyle="#8b949e";ctx.font="11px sans-serif";
+  ctx.fillText("数字① →",W-90,sy(0)+18);
+  ctx.save();ctx.translate(sx(0)-22,90);ctx.rotate(-Math.PI/2);ctx.fillText("数字② →",0,0);ctx.restore();
+
+  // 若选中：先画到各点的连线 + 距离
+  if(selected!==null){
+    const s=words[selected];
+    let nearest=-1, nd=1e9;
+    words.forEach((w,i)=>{ if(i!==selected){ const d=dist(s,w); if(d<nd){nd=d;nearest=i;} }});
+    words.forEach((w,i)=>{
+      if(i===selected)return;
+      const d=dist(s,w);
+      const close = i===nearest;
+      ctx.strokeStyle = close ? "#3fb950" : "#30363d";
+      ctx.lineWidth = close ? 3 : 1;
+      ctx.beginPath();ctx.moveTo(sx(s.x),sy(s.y));ctx.lineTo(sx(w.x),sy(w.y));ctx.stroke();
+      // 距离标在线中点
+      ctx.fillStyle = close ? "#3fb950" : "#6e7681";
+      ctx.font = close ? "bold 12px sans-serif" : "11px sans-serif";
+      ctx.fillText(d.toFixed(1), (sx(s.x)+sx(w.x))/2, (sy(s.y)+sy(w.y))/2);
+    });
+    cap.innerHTML = `「${s.t}」的向量 = <b>[${s.x}, ${s.y}]</b>　|　离它最近(最像)的是 <b style="color:#3fb950">「${words[nearest].t}」</b>（距离 ${nd.toFixed(1)}）`;
+  }
+
+  // 画点 + 标签
+  words.forEach((w,i)=>{
+    const r = i===selected ? 11 : 7;
+    ctx.beginPath();ctx.arc(sx(w.x),sy(w.y),r,0,Math.PI*2);
+    ctx.fillStyle=COL[w.g];ctx.fill();
+    if(i===selected){ctx.strokeStyle="#fff";ctx.lineWidth=2.5;ctx.stroke();}
+    ctx.fillStyle="#e6edf3";ctx.font="bold 15px sans-serif";
+    ctx.fillText(w.t, sx(w.x)+r+3, sy(w.y)+5);
+    // 坐标小字
+    ctx.fillStyle="#8b949e";ctx.font="10px sans-serif";
+    ctx.fillText(`[${w.x},${w.y}]`, sx(w.x)+r+3, sy(w.y)+18);
+  });
+}
+const cap=document.getElementById("cap");
+
+cv.onclick=function(e){
+  const rect=cv.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  let hit=null,hd=1e9;
+  words.forEach((w,i)=>{const d=Math.hypot(mx-sx(w.x),my-sy(w.y));if(d<hd){hd=d;hit=i;}});
+  if(hd<24){ selected=hit; draw(); }
+};
+
+document.getElementById("clear").onclick=function(){selected=null;cap.innerHTML="👆 点一个词试试，看它的坐标和“最像”的词。";draw();};
+document.getElementById("demo").onclick=function(){selected=0;draw();};
+
+draw();
+</script>
+</body>
+</html>
