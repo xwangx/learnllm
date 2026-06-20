@@ -14,6 +14,7 @@
 | **③** [从零写 GPT](stage3/) | 手写 Transformer | 自注意力、多头、自回归生成、tokenize、温度 | 1080万参数，生成莎士比亚 |
 | **④** [LoRA 微调](stage4/) | 微调 Qwen2.5-0.5B | LoRA、chat模板、prompt masking、微调 vs RAG、量化 | 只训 0.22% 参数，注入领域风格 |
 | **⑤** [RAG 问答](stage5/) | 检索增强生成 | 嵌入、向量检索、切块、可溯源问答 | 9423块索引，答案基于真实原文+出处 |
+| **⑥** [从零写 ViT](stage6/) | 图像版 Transformer | patch嵌入、ViT、ViT vs CNN「数据饥渴」、偏差/方差诊断 | CNN 90.8% vs ViT 79.7%（CIFAR-10）|
 
 每个阶段目录下都有自己的 `README.md` 详解，设计文档在 [`docs/superpowers/specs/`](docs/superpowers/specs/)。
 
