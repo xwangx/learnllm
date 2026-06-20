@@ -1,7 +1,7 @@
 # 从零学机器学习：从一个神经元到 RAG 助手
 
 一条**由浅入深、亲手实现**的机器学习/深度学习学习路径。不调包速成，每个阶段都从原理出发、
-重注释、可运行、可复现——从用 numpy 手推反向传播，一路走到从零手写 GPT、微调大模型、再到挂 RAG。
+重注释、可运行、可复现——从用 numpy 手推反向传播，一路走到从零手写 GPT、微调大模型、RAG、再到从零写 ViT。
 
 > 全程在单卡 RTX 5090 上完成，代码以中文注释为主，适合中文学习者跟读。
 
@@ -18,15 +18,19 @@
 
 每个阶段目录下都有自己的 `README.md` 详解，设计文档在 [`docs/superpowers/specs/`](docs/superpowers/specs/)。
 
-> 📖 **理论结合**：[吴恩达《Machine Learning Yearning》× 本项目对照](docs/吴恩达-机器学习训练秘籍-对照.md)——把训练方法论（数据划分、偏差/方差、误差分析、迁移学习）和我们每个动手阶段一一对应。
->
-> 🎬 **交互动画**：[向量是怎么被"整理"出意义的](docs/vector-space-animation.html)（浏览器打开）——直观看到一堆杂乱向量被一层层变换、整理成"同类聚一团、距离=意思"的语义空间。
->
-> 🧭 **为什么用向量（2维零数学版）**：[why-vectors-2d.html](docs/why-vectors-2d.html)——几个词当成平面坐标，点一下看"谁离它最近=最像"，最朴素地理解"向量=坐标、距离=相似"。
->
-> 👁️ **注意力在关注什么**：[attention-explainer.html](docs/attention-explainer.html)——点句子里的词，看模型处理它时"目光"投向哪些相关词（如「它」→「小猫」的代词指代）。
->
-> ⛰️ **参数怎么自己调对的**：[gradient-descent.html](docs/gradient-descent.html)——梯度下降动画，小球顺着"损失山谷"滚到谷底；拖学习率滑块看步子太大/太小的后果。
+## 🎨 交互式可视化讲解（浏览器打开，点一点就懂）
+
+`docs/` 下有一组自制的交互页面，把深度学习的核心"黑盒"逐个点亮——零数学也能看懂：
+
+| 可视化 | 点亮的概念 |
+|--------|-----------|
+| [why-vectors-2d.html](docs/why-vectors-2d.html) | **为什么用向量**：词当平面坐标，点一下看"谁离它最近=最像"——向量=坐标，距离=相似 |
+| [vector-space-animation.html](docs/vector-space-animation.html) | **变换在干嘛**：一堆杂乱向量被一层层整理成"同类聚一团"的语义空间 |
+| [attention-explainer.html](docs/attention-explainer.html) | **注意力关注什么**：点句子里的词，看它的"目光"投向哪（如「它」→「小猫」代词指代）|
+| [gradient-descent.html](docs/gradient-descent.html) | **参数怎么自己调对**：小球顺损失山谷滚到谷底；拖学习率滑块看步子太大/太小/发散 |
+| [stage6/vit_explainer.html](stage6/vit_explainer.html) | **图像怎么变向量**：ViT 把图切块→token→分类 + ViT vs CNN 对比图 |
+
+> 📖 **理论结合**：[吴恩达《Machine Learning Yearning》× 本项目对照](docs/吴恩达-机器学习训练秘籍-对照.md)——把训练方法论（数据划分、偏差/方差、误差分析、迁移学习）和每个动手阶段一一对应。
 
 ## 一条贯穿始终的主线
 
@@ -36,7 +40,7 @@
 前向 → 算 loss → 反向求梯度 → 更新参数
 ```
 
-从阶段① numpy 手写的 XOR，到阶段③的 GPT，到阶段④的微调，做的都是这件事。
+从阶段① numpy 手写的 XOR，到阶段③的 GPT，到阶段⑥的 ViT，做的都是这件事。
 变的只有**模型结构**（全连接 → 卷积 → Transformer）和**起点**（从零训 vs 站在预训练模型肩上）。
 理解了这一点，所有"大模型"都不再神秘。
 
@@ -57,21 +61,22 @@
 # 依赖（按需）
 pip install torch torchvision numpy transformers peft datasets modelscope matplotlib
 
-# 各阶段独立运行，例如：
-python stage1/01_xor_numpy.py
-python stage2/02_mnist_cnn.py
-python stage3/train.py && python stage3/generate.py
-python stage4/finetune_instruct.py && python stage4/chat_instruct.py
-python stage5/build_index.py && python stage5/rag.py --q "你的问题"
+# 各阶段独立运行：
+python stage1/01_xor_numpy.py                                   # ① numpy 手写训练
+python stage2/02_mnist_cnn.py                                   # ② MNIST CNN
+python stage3/train.py && python stage3/generate.py            # ③ 训 GPT + 生成
+python stage4/finetune_instruct.py && python stage4/chat_instruct.py  # ④ 指令微调 + 对话
+python stage5/build_index.py && python stage5/rag.py --q "你的问题"     # ⑤ 建索引 + RAG 问答
+python stage6/get_cifar.py && python stage6/train_vit.py --model vit   # ⑥ 下数据 + 训 ViT
 ```
 
-- Python 3.13 + PyTorch (CUDA)。阶段①纯 CPU 即可；②③④⑤建议 GPU。
-- 阶段④⑤的基座/嵌入模型从 ModelScope 下载（国内稳定）。
+- Python 3.13 + PyTorch (CUDA)。阶段①纯 CPU 即可；②③④⑤⑥建议 GPU。
+- 阶段④⑤的基座/嵌入模型从 ModelScope 下载（国内稳定）；阶段⑥ CIFAR-10 走 fast.ai 镜像。
 - 数据集、模型权重、向量索引等大文件均不入库（见 `.gitignore`），可按脚本重新生成。
 
 ## 技术栈
 
-NumPy · PyTorch · Hugging Face Transformers · PEFT (LoRA) · Datasets · ModelScope · BGE 嵌入模型 · Qwen2.5
+NumPy · PyTorch · Hugging Face Transformers · PEFT (LoRA) · Datasets · ModelScope · BGE 嵌入模型 · Qwen2.5 · SVG/Canvas 可视化
 
 ---
 
