@@ -3,6 +3,8 @@
 学习路径第 6 阶段。多模态里"视觉"那一半的核心：用 Transformer 处理图像。
 是阶段②(图像分类) + 阶段③(Transformer) 的合体，并用吴恩达《ML Yearning》的框架做诊断。
 
+> 🖼️ **图解版**：[vit_explainer.html](vit_explainer.html)（浏览器打开）——含数据流图、ViT vs CNN 对比图、偏差/方差诊断、"为什么数据饥渴"图解。
+
 ## 核心洞见
 
 **ViT = 把阶段③那个 Transformer 拿来处理图像。** 区别只有两点：

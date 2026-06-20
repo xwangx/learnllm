@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ViT 图解 — 阶段⑥</title>
+<style>
+  body { margin:0; background:#0d1117; color:#e6edf3;
+         font-family:"Segoe UI",system-ui,"Microsoft YaHei",sans-serif; line-height:1.7; }
+  .wrap { max-width:1080px; margin:0 auto; padding:28px 24px 60px; }
+  h1 { font-size:22px; font-weight:700; }
+  h1 small { color:#8b949e; font-weight:400; font-size:13px; display:block; margin-top:4px; }
+  h2 { font-size:17px; margin:38px 0 8px; border-left:4px solid #1f6feb; padding-left:10px; }
+  p { color:#c9d1d9; font-size:14px; }
+  .card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:16px 18px; margin-top:12px; }
+  svg { width:100%; height:auto; display:block; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:#c9d1d9; margin:8px 0; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .sw { width:13px; height:13px; border-radius:3px; display:inline-block; }
+  table { border-collapse:collapse; width:100%; margin-top:10px; font-size:13.5px; }
+  th,td { border:1px solid #30363d; padding:7px 10px; text-align:center; }
+  th { background:#21262d; }
+  .good { color:#3fb950; font-weight:600; }
+  .bad { color:#f85149; font-weight:600; }
+  .key { background:#172554; border:1px solid #1f6feb; border-radius:8px; padding:12px 16px; margin-top:14px; }
+  .key b { color:#79c0ff; }
+  code { background:#21262d; padding:1px 5px; border-radius:4px; font-size:12.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>ViT 图解：Transformer 怎么"看"图片
+  <small>阶段⑥ — 对应 stage6/vit.py，数据从左到右流动</small></h1>
+
+<div class="key">
+  <b>一句话：</b>ViT = 把阶段③那个 GPT 的 Transformer 拿来处理图像。
+  只换两件事：① 输入从"文字 token"变成"图片切块(patch) token"；
+  ② 注意力<b>不加因果 mask</b>（看图可以前后左右都看）。
+</div>
+
+<!-- ============ 图1：ViT 数据流 ============ -->
+<h2>① ViT 的数据流</h2>
+<div class="legend">
+  <span><i class="sw" style="background:#1f6feb"></i>图像 / patch</span>
+  <span><i class="sw" style="background:#9e6a03"></i>token 向量</span>
+  <span><i class="sw" style="background:#db61a2"></i>[CLS] 汇总 token</span>
+  <span><i class="sw" style="background:#8957e5"></i>Transformer / 输出</span>
+</div>
+<div class="card">
+<svg viewBox="0 0 1040 360" role="img" aria-label="ViT 数据流图">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#6e7681"/>
+    </marker>
+    <style>
+      .lab{fill:#e6edf3;font-size:12.5px;text-anchor:middle;}
+      .dim{fill:#8b949e;font-size:11px;text-anchor:middle;}
+      .op{fill:#7d8590;font-size:11px;text-anchor:middle;font-style:italic;}
+      .flow{stroke:#6e7681;stroke-width:1.6;marker-end:url(#ar);fill:none;}
+    </style>
+  </defs>
+
+  <!-- 1. 原图 + patch 网格 -->
+  <text class="lab" x="70" y="40">原图</text>
+  <text class="dim" x="70" y="56">3×32×32</text>
+  <rect x="30" y="66" width="80" height="80" fill="#1f6feb" opacity="0.30" stroke="#1f6feb"/>
+  <!-- 网格线，示意切成 patch -->
+  <g stroke="#1f6feb" stroke-width="1" opacity="0.8">
+    <line x1="50" y1="66" x2="50" y2="146"/><line x1="70" y1="66" x2="70" y2="146"/><line x1="90" y1="66" x2="90" y2="146"/>
+    <line x1="30" y1="86" x2="110" y2="86"/><line x1="30" y1="106" x2="110" y2="106"/><line x1="30" y1="126" x2="110" y2="126"/>
+  </g>
+  <text class="dim" x="70" y="162">每个小方块=1个patch</text>
+
+  <!-- 箭头：切patch -->
+  <text class="op" x="165" y="95">切成 patch</text>
+  <text class="op" x="165" y="110">(4×4一块)</text>
+  <path class="flow" d="M112,106 L210,106"/>
+
+  <!-- 2. patch 序列 -->
+  <g fill="#1f6feb" opacity="0.7">
+    <rect x="212" y="86" width="16" height="16" rx="2"/>
+    <rect x="232" y="86" width="16" height="16" rx="2"/>
+    <rect x="252" y="86" width="16" height="16" rx="2"/>
+    <rect x="272" y="86" width="16" height="16" rx="2"/>
+  </g>
+  <text class="dim" x="250" y="122">…64个patch</text>
+
+  <!-- 箭头：线性嵌入 -->
+  <text class="op" x="320" y="100">线性嵌入</text>
+  <path class="flow" d="M292,94 L355,94"/>
+
+  <!-- 3. token 向量 -->
+  <g fill="#9e6a03" opacity="0.9">
+    <rect x="358" y="70" width="11" height="56" rx="2"/>
+    <rect x="373" y="70" width="11" height="56" rx="2"/>
+    <rect x="388" y="70" width="11" height="56" rx="2"/>
+    <rect x="403" y="70" width="11" height="56" rx="2"/>
+  </g>
+  <text class="dim" x="386" y="142">每patch→1个向量</text>
+
+  <!-- 4. 加 CLS + 位置 -->
+  <text class="op" x="470" y="86">+[CLS]</text>
+  <text class="op" x="470" y="101">+位置嵌入</text>
+  <path class="flow" d="M418,98 L520,98"/>
+
+  <!-- CLS + tokens -->
+  <rect x="524" y="70" width="11" height="56" rx="2" fill="#db61a2"/>
+  <g fill="#9e6a03" opacity="0.9">
+    <rect x="539" y="70" width="11" height="56" rx="2"/>
+    <rect x="554" y="70" width="11" height="56" rx="2"/>
+    <rect x="569" y="70" width="11" height="56" rx="2"/>
+    <rect x="584" y="70" width="11" height="56" rx="2"/>
+  </g>
+  <text class="dim" x="529" y="142" fill="#db61a2">CLS</text>
+  <text class="dim" x="565" y="158">共 65 个 token</text>
+
+  <!-- 箭头进 Transformer -->
+  <path class="flow" d="M600,98 L650,98"/>
+
+  <!-- 5. Transformer 编码器 -->
+  <rect x="652" y="50" width="200" height="100" rx="8" fill="#8957e5" opacity="0.22" stroke="#8957e5"/>
+  <text class="lab" x="752" y="74" fill="#d2a8ff">Transformer 编码器 ×6</text>
+  <text class="dim" x="752" y="94">多头自注意力(无因果mask)</text>
+  <text class="dim" x="752" y="110">+ 前馈网络 FFN</text>
+  <text class="dim" x="752" y="126">+ 残差 + LayerNorm</text>
+  <text class="op" x="752" y="166">（积木几乎照搬阶段③）</text>
+
+  <!-- 箭头取CLS -->
+  <text class="op" x="895" y="86">取[CLS]</text>
+  <path class="flow" d="M854,98 L930,98"/>
+
+  <!-- 6. 分类 -->
+  <rect x="932" y="74" width="80" height="48" rx="8" fill="#8957e5" opacity="0.9"/>
+  <text class="lab" x="972" y="94" fill="#fff">分类头</text>
+  <text class="dim" x="972" y="110" fill="#eee">→ 10类</text>
+  <text class="lab" x="972" y="150">预测："猫"</text>
+
+  <!-- 底部说明：CLS 的作用 -->
+  <text class="op" x="520" y="210" text-anchor="start">
+    💡 [CLS] 是一个额外的"汇总 token"：它在注意力里会"读遍"所有 patch，
+  </text>
+  <text class="op" x="520" y="226" text-anchor="start">
+    最后只用它的输出做分类（和阶段⑤ bge 用 [CLS] 代表整句一个道理）。
+  </text>
+  <text class="op" x="40" y="210" text-anchor="start">
+    🖼️ 注意力本身不分先后顺序，所以必须显式
+  </text>
+  <text class="op" x="40" y="226" text-anchor="start">
+    加"位置嵌入"，告诉模型每个 patch 在图里的位置。
+  </text>
+</svg>
+</div>
+
+<!-- ============ 图2：ViT vs CNN 结果对比 ============ -->
+<h2>② ViT vs CNN：实测对比（CIFAR-10，各训 30 轮）</h2>
+<div class="card">
+<svg viewBox="0 0 1040 240" role="img" aria-label="ViT vs CNN 准确率对比">
+  <style>
+    .axis{stroke:#30363d;stroke-width:1;}
+    .barlab{fill:#e6edf3;font-size:14px;font-weight:700;text-anchor:middle;}
+    .barname{fill:#c9d1d9;font-size:13px;text-anchor:middle;}
+    .tick{fill:#8b949e;font-size:11px;text-anchor:end;}
+  </style>
+  <!-- y 轴刻度 0..100 -->
+  <line class="axis" x1="120" y1="20" x2="120" y2="180"/>
+  <line class="axis" x1="120" y1="180" x2="1000" y2="180"/>
+  <g>
+    <text class="tick" x="112" y="184">0</text>
+    <text class="tick" x="112" y="144">25</text>
+    <text class="tick" x="112" y="104">50</text>
+    <text class="tick" x="112" y="64">75</text>
+    <text class="tick" x="112" y="24">100</text>
+    <line class="axis" x1="120" y1="60" x2="1000" y2="60" stroke-dasharray="4 4" opacity="0.4"/>
+    <text class="tick" x="1030" y="64" fill="#3fb950">人类≈94%</text>
+  </g>
+  <!-- CNN 柱: 90.8% -> 高度=90.8/100*160=145.3 -->
+  <rect x="300" y="34.7" width="120" height="145.3" rx="4" fill="#3fb950" opacity="0.85"/>
+  <text class="barlab" x="360" y="28">90.8%</text>
+  <text class="barname" x="360" y="200">CNN 基线</text>
+  <text class="barname" x="360" y="216" fill="#8b949e">2.20M 参数</text>
+  <!-- ViT 柱: 79.7% -> 高度=127.5 -->
+  <rect x="640" y="52.5" width="120" height="127.5" rx="4" fill="#8957e5" opacity="0.85"/>
+  <text class="barlab" x="700" y="46">79.7%</text>
+  <text class="barname" x="700" y="200">ViT（从零）</text>
+  <text class="barname" x="700" y="216" fill="#8b949e">2.69M 参数</text>
+</svg>
+<p style="margin-top:6px"><b style="color:#f85149">反直觉的关键点：</b>
+ViT 参数<b>更多</b>(2.69M &gt; 2.20M)，准确率反而<b>低 11 个百分点</b>。这不是 bug，是 ViT 的本质。</p>
+</div>
+
+<!-- 偏差方差表 -->
+<h2>③ 吴恩达式诊断（对标人类水平 94%）</h2>
+<table>
+  <tr><th></th><th>训练误差</th><th>验证误差</th><th>可避免偏差<br>(训练−人类)</th><th>方差<br>(验证−训练)</th><th>诊断</th></tr>
+  <tr><td><b>CNN</b></td><td>2.3%</td><td>9.6%</td><td class="good">≈0</td><td>7.2%</td><td>主要是过拟合</td></tr>
+  <tr><td><b>ViT</b></td><td class="bad">12.7%</td><td>21.7%</td><td class="bad">+6.7%</td><td>9.0%</td><td>又欠拟合又过拟合</td></tr>
+</table>
+<p>CNN 连训练集都快拟合满了（可避免偏差≈0），只差在方差；
+ViT <b>连训练集都没学好</b>（可避免偏差 6.7%）——这是"缺图像先验"的直接信号。</p>
+
+<!-- ============ 图3：为什么数据饥渴 ============ -->
+<h2>④ 为什么 ViT 打不过 CNN？——核心一课</h2>
+<div class="card">
+<svg viewBox="0 0 1040 200" role="img" aria-label="CNN vs ViT 归纳偏置对比">
+  <style>
+    .ttl{fill:#e6edf3;font-size:14px;font-weight:700;text-anchor:middle;}
+    .txt{fill:#c9d1d9;font-size:12px;text-anchor:middle;}
+  </style>
+  <!-- CNN 卡 -->
+  <rect x="40" y="20" width="460" height="160" rx="10" fill="#3fb950" opacity="0.12" stroke="#3fb950"/>
+  <text class="ttl" x="270" y="46" fill="#3fb950">CNN：自带"图像先验"</text>
+  <text class="txt" x="270" y="74">卷积天生假设：① 局部相关（邻近像素相关）</text>
+  <text class="txt" x="270" y="94">② 平移不变（猫在哪都是猫）</text>
+  <text class="txt" x="270" y="122">这些正是图像的规律，所以</text>
+  <text class="txt" x="270" y="142" fill="#3fb950">有限数据就能学得又快又好 ✓</text>
+
+  <!-- ViT 卡 -->
+  <rect x="540" y="20" width="460" height="160" rx="10" fill="#8957e5" opacity="0.12" stroke="#8957e5"/>
+  <text class="ttl" x="770" y="46" fill="#d2a8ff">ViT：几乎没有先验</text>
+  <text class="txt" x="770" y="74">把图片当成一串 patch，用纯注意力</text>
+  <text class="txt" x="770" y="94">"从零"学习哪些 patch 该互相关注</text>
+  <text class="txt" x="770" y="122">表达力上限更高，但代价是</text>
+  <text class="txt" x="770" y="142" fill="#f0883e">数据饥渴：需要海量数据/预训练 ⚠</text>
+</svg>
+<div class="key" style="margin-top:8px">
+  <b>结论：</b>CIFAR-10 只有 5 万张图，对 ViT 远远不够，所以它输给了 CNN。
+  这与 ViT 原论文一致——<b>ViT 只有在超大规模预训练（如 3 亿张图）后才会反超 CNN</b>。
+  这也正是阶段④"预训练/迁移学习为何重要"的延续：多模态大模型里的视觉编码器，
+  无一例外都是大规模预训练出来的。
+</div>
+</div>
+
+<h2>⑤ 和多模态的关系</h2>
+<p>ViT 就是多模态大模型（Qwen-VL、LLaVA 等）里<b>视觉编码器</b>的原型：
+把图片变成一串 token → 用一个投影层对齐到 LLM 的 token 空间 → LLM 就能"看图说话"。
+理解了 ViT，你就理解了多模态的"视觉"那一半。</p>
+
+<p style="color:#8b949e;margin-top:30px;font-size:12.5px">
+对应代码：<code>stage6/vit.py</code>（模型）· <code>stage6/train_vit.py</code>（训练+诊断）·
+<code>stage6/README.md</code>（文字详解）
+</p>
+
+</div>
+</body>
+</html>

@@ -16,3 +16,7 @@ stage4/_trainer_out_instruct/
 # 阶段⑤：索引含 wiki 正文，绝不上传（公开仓库会泄露内容）
 stage5/index.npz
 stage5/meta.json
+
+# 工具临时产物
+.playwright-mcp/
+vit_explainer_preview.png
