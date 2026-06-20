@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>注意力到底在关注什么？</title>
+<style>
+  body{margin:0;background:#0d1117;color:#e6edf3;
+       font-family:"Segoe UI",system-ui,"Microsoft YaHei",sans-serif;line-height:1.6;}
+  .wrap{max-width:880px;margin:0 auto;padding:24px 20px 60px;}
+  h1{font-size:21px;font-weight:700;}
+  .sub{color:#8b949e;font-size:13.5px;margin-bottom:14px;}
+  .cap{text-align:center;font-size:15px;color:#e6edf3;min-height:48px;margin:8px 0;}
+  .cap b{color:#79c0ff;}
+  svg{background:#0a0e14;border:1px solid #30363d;border-radius:10px;display:block;margin:0 auto;width:100%;height:auto;}
+  .tip{text-align:center;color:#8b949e;font-size:13px;margin:10px 0;}
+  .note{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 14px;font-size:13.5px;color:#c9d1d9;margin-top:16px;}
+  .note b{color:#79c0ff;}
+  .chips{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:8px 0;}
+  .chips button{background:#21262d;color:#e6edf3;border:1px solid #30363d;border-radius:20px;padding:5px 14px;font-size:13px;cursor:pointer;}
+  .chips button:hover{background:#30363d;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>注意力到底在"关注"什么？</h1>
+  <div class="sub">一句话里，模型处理每个词时，会"看"向句中其他相关的词。<b>点任意一个词</b>，看它的"目光"落在哪。</div>
+
+  <div class="cap" id="cap">👆 点「它」试试——看模型怎么找到它指的是谁。</div>
+
+  <svg id="cv" viewBox="0 0 880 360" role="img" aria-label="注意力可视化"></svg>
+
+  <div class="tip">线越粗/越亮、下方蓝条越高 = 注意力越强。点不同的词看不同的"关注"。</div>
+  <div class="chips" id="chips"></div>
+
+  <div class="note">
+    <b>注意力一句话原理：</b>每个词都在问"<b>句子里谁和我有关？</b>"（它的 Query），
+    拿这个问题去和每个词的"<b>我是什么</b>"（Key）对一对，算出一组"关注权重"，
+    再按权重把相关词的信息（Value）<b>加权汇总</b>到自己身上。<br>
+    所以处理「它」时，模型发现「小猫」最相关 → 把"小猫"的信息汇集过来，于是它"知道"了它=小猫。
+    这就是 Transformer / 大模型理解上下文的核心机制（阶段③你手写过）。<br>
+    <span style="color:#8b949e">（图中权重为教学示意，真实模型有很多个注意力头、权重是训练学出来的。）</span>
+  </div>
+</div>
+
+<script>
+const tokens=["小猫","趴在","沙发上","，","因为","它","太","累","了"];
+// 每个词作为"查询"时，对各词的注意力权重（示意；会自动归一化）
+const ATT={
+  0:[0.50,0.18,0.10,0.0,0.0,0.10,0.0,0.10,0.02], // 小猫
+  1:[0.40,0.16,0.34,0.0,0.0,0.04,0.0,0.04,0.02], // 趴在
+  2:[0.26,0.30,0.24,0.0,0.0,0.06,0.0,0.10,0.04], // 沙发上
+  5:[0.62,0.04,0.05,0.0,0.03,0.12,0.02,0.10,0.02], // 它
+  7:[0.34,0.04,0.03,0.0,0.03,0.28,0.05,0.18,0.05], // 累
+};
+const CAP={
+  0:"「小猫」会瞥向和它相关的词：趴在、累、它。",
+  1:"「趴在」同时看「小猫」(谁趴) 和「沙发上」(趴在哪)。",
+  2:"「沙发上」回看「趴在」和「小猫」。",
+  5:"处理「它」时，注意力主要投向 <b>「小猫」</b>——模型把代词和它指代的对象联系起来了。这正是注意力最经典的本事。",
+  7:"「累」最关注 <b>「小猫」和「它」</b>——谁累了？是小猫。",
+};
+function defAtt(i){const w=tokens.map(()=>0);w[i]=0.55;if(i>0)w[i-1]=0.25;if(i<tokens.length-1)w[i+1]=0.15;return w;}
+function norm(w){const s=w.reduce((a,b)=>a+b,0)||1;return w.map(x=>x/s);}
+
+const cv=document.getElementById("cv"), cap=document.getElementById("cap");
+const NS="http://www.w3.org/2000/svg";
+const yRow=170, yBarBase=300, BARMAX=95;
+let xs=[]; // 每个 token 的中心 x
+
+function layout(){
+  let x=40; xs=[];
+  for(const t of tokens){ const w=Math.max(46, t.length*24)+22; xs.push(x+w/2); x+=w; }
+  // 居中
+  const total=x-40, off=(880-total)/2-40;
+  xs=xs.map(v=>v+off);
+}
+function el(tag,attrs){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
+
+let selected=5;
+function render(){
+  cv.innerHTML="";
+  const w = selected!=null ? norm((ATT[selected]||defAtt(selected))) : null;
+
+  // 注意力弧线（从 query 到每个词，向上拱）
+  if(selected!=null){
+    tokens.forEach((t,i)=>{
+      const a=w[i]; if(a<0.02) return;
+      const x1=xs[selected], x2=xs[i];
+      if(i===selected) return;
+      const cx=(x1+x2)/2, cy=yRow-40-Math.abs(x1-x2)*0.18;
+      const p=el("path",{d:`M${x1},${yRow-18} Q${cx},${cy} ${x2},${yRow-18}`,
+        fill:"none", stroke:"#58a6ff", "stroke-opacity":Math.min(1,a*1.4+0.05),
+        "stroke-width":1+a*12, "stroke-linecap":"round"});
+      cv.appendChild(p);
+    });
+  }
+
+  // 词
+  tokens.forEach((t,i)=>{
+    const isSel=i===selected;
+    const g=el("g",{cursor:"pointer"}); g.dataset.i=i;
+    const tw=Math.max(46,t.length*24);
+    const rect=el("rect",{x:xs[i]-tw/2,y:yRow-22,width:tw,height:40,rx:8,
+      fill:isSel?"#1f6feb":"#21262d",stroke:isSel?"#79c0ff":"#30363d","stroke-width":isSel?2:1});
+    const txt=el("text",{x:xs[i],y:yRow+5,"text-anchor":"middle","font-size":18,
+      "font-weight":isSel?700:500,fill:"#e6edf3"});
+    txt.textContent=t;
+    g.appendChild(rect);g.appendChild(txt);
+    g.onclick=()=>{selected=i;cap.innerHTML=CAP[i]||"这个词主要关注自己和相邻的词。点「它」「累」看更有意思的指代关系。";render();};
+    cv.appendChild(g);
+
+    // 下方权重条
+    if(selected!=null){
+      const a=w[i], h=a*BARMAX;
+      cv.appendChild(el("rect",{x:xs[i]-14,y:yBarBase-h,width:28,height:h,rx:3,
+        fill:"#58a6ff","fill-opacity":0.3+a*0.7}));
+      const pct=el("text",{x:xs[i],y:yBarBase-h-6,"text-anchor":"middle","font-size":12,
+        fill:a>0.2?"#79c0ff":"#8b949e"});
+      pct.textContent=Math.round(a*100)+"%";
+      cv.appendChild(pct);
+    }
+  });
+  // 基线
+  cv.appendChild(el("line",{x1:20,y1:yBarBase,x2:860,y2:yBarBase,stroke:"#30363d"}));
+  cv.appendChild(el("text",{x:30,y:yBarBase+20,"font-size":12,fill:"#6e7681"}))
+    .textContent="↑ 蓝条 = 处理选中词时，对每个词的关注程度";
+}
+
+const chips=document.getElementById("chips");
+[5,7,1,0,2].forEach(i=>{
+  const b=document.createElement("button");b.textContent="看「"+tokens[i]+"」";
+  b.onclick=()=>{selected=i;cap.innerHTML=CAP[i]||"";render();};
+  chips.appendChild(b);
+});
+
+layout();render();
+</script>
+</body>
+</html>
