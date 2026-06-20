@@ -17,6 +17,8 @@
 
 每个阶段目录下都有自己的 `README.md` 详解，设计文档在 [`docs/superpowers/specs/`](docs/superpowers/specs/)。
 
+> 📖 **理论结合**：[吴恩达《Machine Learning Yearning》× 本项目对照](docs/吴恩达-机器学习训练秘籍-对照.md)——把训练方法论（数据划分、偏差/方差、误差分析、迁移学习）和我们每个动手阶段一一对应。
+
 ## 一条贯穿始终的主线
 
 最底层的训练循环**从头到尾没变过**：
